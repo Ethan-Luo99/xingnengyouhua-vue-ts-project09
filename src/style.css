@@ -160,12 +160,59 @@ code {
   width: 1126px;
   max-width: 100%;
   margin: 0 auto;
-  text-align: center;
+  text-align: left;
   border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+/* 演示页: 固定深色, 避免随系统主题变化影响面板可读性 */
+:root {
+  color-scheme: dark;
+  --text: #c8cdd5;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --border: #2e303a;
+}
+
+#app {
+  padding: 0 20px;
+}
+
+button {
+  background: #2a2d36;
+  color: #d5d9e0;
+  border: 1px solid #3a3d47;
+  border-radius: 5px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+button:hover {
+  background: #353945;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input,
+select {
+  background: #22252d;
+  color: #d5d9e0;
+  border: 1px solid #3a3d47;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+h1 {
+  font-size: 22px;
+  letter-spacing: 0;
+  margin: 16px 0 8px;
 }
 
 #center {
