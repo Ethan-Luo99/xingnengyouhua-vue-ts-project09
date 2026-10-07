@@ -38,3 +38,13 @@
 - v-memo：行渲染 300 → 48（=实际受影响行数），stale UI 断言 0 不一致（依赖数组 = 模板读取的全部可变字段 [value, status, score, delta]）。
 - effectScope 统一治理：基线卸载后残留 360 监听器 / 360 watcher / 40 定时器触发，优化态全 0（行为探针断言，非静态检查）。
 - 流聚批+背压：flush 12331 → 240 轮/4s（≈每帧 1 轮），渲染频率封顶帧率成立。
+
+## 6. 调度器 v2：双队列（帧 rAF / 后台宏任务）、可见性迁移、慢任务同源降级
+
+本轮把手段 7 的单队列分片调度器改造为双队列，**对外 API 与既有面板口径保持兼容**（`schedule/cancel/done/cancelAll/whenIdle/dispose`、`pending/executed/errors/avgTaskMs` 全部保留；仅新增只读指标与 `TaskHandle.getPriority()`）。
+
+- **队列拆分**：`critical/visible` 进帧预算队列（rAF 对齐 + 8ms 预算 + EMA 自适应片大小）；`idle` 进后台宏任务队列，由 `scheduler.yield() → MessageChannel → setTimeout(0)` 降级链驱动。可见时帧切片排空帧队列后若仍有预算，会 park 捎带宏任务队列中的 idle——这是为了**保持 v1 总序**（任何 critical/visible 先于 idle、同级 FIFO）。场景 A 存在 `idle` 依赖前序 `visible`（i%4 链），若改成严格两队列并行（idle 在 rAF 之间的宏任务里抢先跑）会破坏拓扑序，park 捎带在不削功能的前提下规避了该回归。
+- **可见性迁移**：`document.visibilitychange` hidden 时帧队列所有待执行任务迁入宏任务链（rAF 在隐藏页签不触发）；visible 时带迁移标记的任务按**当前有效优先级**迁回（被慢降级为 idle 的不再回帧队列，原生 idle 永不回）。迁移只改驻留队列，不改任务状态机：`cancel()` 对待执行任务立即出队并 settle `done`（已取消迁移后仍不执行、`done` 仍 resolve）；执行中任务不可抢占（与 v1 一致）。
+- **慢任务降级**：单任务墙钟 > 3ms 记 `slow`，同一批次（一次帧切片）内仍在排队的**同源**后继（按新增的可选 `task.source` 归并）有效优先级降一级：critical→visible（帧队列内重排）、visible→idle（移入宏任务链）。异源任务、下一批次新任务不受影响（selftest 第 8 组以 `demotions===1` 行为断言锁定）。
+- **面板口径**：仅在"实时指标"新增一行只读 `v2 慢任务计数 / 同源降级次数 / 可见性迁移次数`（全局 `schedulerStats`），**未改动**任何既有指标定义与三场景验收字段；故验收表数字口径无变化。本轮复测场景 A `?rerun=a`：基线 1 个 >50ms Long Task、优化 0、任务完成 360/360、卸载后残留监听器 0，与 v1 结论一致。
+- **证据（headless Chromium 153，无节流，`?selftest=1`，连续 3 次）**：9 组边界断言全绿；其中场景 C 全开对账 10s 实测 `帧≈600、flush≈601（预算 帧×1.2≈720）`、产出约 3.1 万条消息、双管线 dropped=0/0、终态 seq 与参照管线逐条一致、丢弃+100 条列表窗口可完整解释未出现的 seq。

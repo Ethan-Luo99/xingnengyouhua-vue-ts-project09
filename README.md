@@ -72,7 +72,7 @@ URL 参数：`?tab=a|b|c` 选场景；`?scope=0&sched=0...` 单独开关；`?bas
 
 | 项 | 验证步骤 | 判定 |
 |----|----------|------|
-| 功能行为零变化 | 面板"边界自测"5 项行为断言全过；场景B stale UI 断言 0 处不一致；场景A 任务完成数 360=360 | ✅ |
+| 功能行为零变化 | 面板"边界自测"9 项行为断言全过；场景B stale UI 断言 0 处不一致；场景A 任务完成数 360=360 | ✅ |
 | `npm run build` | vue-tsc 零错误 + vite build 通过 | ✅ |
 | 包体积相对基线零增加 | 优化全部走运行期开关，同一 bundle：`git diff HEAD -- package.json package-lock.json` 为空（零新依赖）；`dist/assets/index-*.js` 93.95 kB（gzip 36.52 kB），开关状态不改变产物 | ✅ |
 
@@ -87,6 +87,6 @@ URL 参数：`?tab=a|b|c` 选场景；`?scope=0&sched=0...` 单独开关；`?bas
 
 ## 边界自测（行为断言，非硬编码）
 
-`?selftest=1` 或面板按钮：shallowRef 深写无 trigger 静默不更新/triggerRef 后更新/替换更新；watcher pause 期间不触发、resume 补最新值、恢复后依赖仍在；LRU 对象身份键（同内容不同引用不同键）/容量淘汰/版本失效；调度器完成性/取消/错误传播/优先级/分片内写响应式状态重入 flush；背压三策略语义。
+`?selftest=1` 或面板按钮，共 9 组行为断言：①shallowRef 深写无 trigger 静默不更新/triggerRef 后更新/替换更新；②watcher pause 期间不触发、resume 补最新值、恢复后依赖仍在；③LRU 对象身份键/容量淘汰/版本失效；④双队列调度器完成性/取消/错误传播/帧队列先于宏任务/分片内写响应式状态重入 flush；⑤背压三策略语义；⑥分片任务内 triggerRef(shallowRef) 与 pause/resume watcher 竞争：更新不丢、无递归超限、每帧 flush ≤2；⑦入队即 cancel 后再隐藏/恢复迁移：任务从不执行、done 正常 settle；⑧慢任务(>3ms) 同批次同源后继降一级（异源/下批次不受影响）；⑨场景C 在 batch+shallow+pause 全开、50 条/帧 + 16ms 定时器叠加下连续 10s：flush 轮次 ≤ 帧数×1.2，终态 seq 与"按当前丢弃策略应收到的消息集合"逐条一致（dropped + 列表窗口可对账）。
 
 更多实现期发现（含对 plan 文档两处结论的证伪与修正建议）见 `docs/implementation-notes.md`。

@@ -21,10 +21,21 @@ export interface Sources {
   readonly running: boolean
 }
 
-export function createSources(onMessage: (m: StreamMsg) => void): Sources {
+export interface SourceOptions {
+  /** 叠加的固定频率定时器（selftest 用 16ms；不提供则只有 100ms 定时器） */
+  extraIntervalMs?: number
+  /** 消息一经生成（seq 分配）即回调，无论之后是否被背压丢弃，供 seq 对账 */
+  onEmit?: (m: StreamMsg) => void
+}
+
+export function createSources(
+  onMessage: (m: StreamMsg) => void,
+  opts: SourceOptions = {},
+): Sources {
   let seq = 0
   let running = false
   let timerId = 0
+  let extraTimerId = 0
   let rafId = 0
   const channel = new MessageChannel()
   const pending: StreamMsg[] = []
@@ -35,12 +46,14 @@ export function createSources(onMessage: (m: StreamMsg) => void): Sources {
   }
 
   function makeMsg(source: StreamMsg['source']): StreamMsg {
-    return {
+    const m = {
       seq: seq++,
       source,
       payload: (seq * 2654435761) % 100000,
       at: performance.now(),
     }
+    opts.onEmit?.(m)
+    return m
   }
 
   function emitStreamBurst(): void {
@@ -62,11 +75,15 @@ export function createSources(onMessage: (m: StreamMsg) => void): Sources {
       if (running) return
       running = true
       timerId = window.setInterval(() => onMessage(makeMsg('timer')), 100)
+      if (opts.extraIntervalMs !== undefined) {
+        extraTimerId = window.setInterval(() => onMessage(makeMsg('timer')), opts.extraIntervalMs)
+      }
       rafId = requestAnimationFrame(rafLoop)
     },
     stop: () => {
       running = false
       clearInterval(timerId)
+      clearInterval(extraTimerId)
       cancelAnimationFrame(rafId)
       pending.length = 0
     },
