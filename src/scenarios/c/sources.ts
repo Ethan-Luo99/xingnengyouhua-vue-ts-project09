@@ -15,13 +15,25 @@ export interface StreamMsg {
 
 export const STREAM_PER_FRAME = 50
 
+export interface SourcesOptions {
+  /** 定时器消息周期，默认 100ms（selftest 叠加场景用 16ms） */
+  timerIntervalMs?: number
+  /** 是否启用每帧 50 条流推送，默认 true */
+  streamBurst?: boolean
+}
+
 export interface Sources {
   start: () => void
   stop: () => void
   readonly running: boolean
 }
 
-export function createSources(onMessage: (m: StreamMsg) => void): Sources {
+export function createSources(
+  onMessage: (m: StreamMsg) => void,
+  options: SourcesOptions = {},
+): Sources {
+  const timerIntervalMs = options.timerIntervalMs ?? 100
+  const streamBurst = options.streamBurst ?? true
   let seq = 0
   let running = false
   let timerId = 0
@@ -44,6 +56,7 @@ export function createSources(onMessage: (m: StreamMsg) => void): Sources {
   }
 
   function emitStreamBurst(): void {
+    if (!streamBurst) return
     for (let i = 0; i < STREAM_PER_FRAME; i++) {
       pending.push(makeMsg('stream'))
       channel.port2.postMessage(null)
@@ -61,7 +74,7 @@ export function createSources(onMessage: (m: StreamMsg) => void): Sources {
     start: () => {
       if (running) return
       running = true
-      timerId = window.setInterval(() => onMessage(makeMsg('timer')), 100)
+      timerId = window.setInterval(() => onMessage(makeMsg('timer')), timerIntervalMs)
       rafId = requestAnimationFrame(rafLoop)
     },
     stop: () => {

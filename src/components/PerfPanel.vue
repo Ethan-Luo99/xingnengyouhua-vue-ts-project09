@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { flags, FLAG_KEYS, FLAG_LABELS, syncFlagsToUrl, allFlagsOn, allFlagsOff } from '../perf/flags'
 import { obs, inpP95, heapMonitor, frameMonitor, startObservers } from '../perf/obs'
-import { yieldStrategy } from '../perf/scheduler'
+import { yieldStrategy, schedStats } from '../perf/scheduler'
 import { runStore, type ScenarioId } from '../perf/runController'
 import { runSelfTests, type SelfTestResult } from '../perf/selftest'
 import { aProbe } from '../scenarios/a/probe'
@@ -128,6 +128,8 @@ onMounted(() => {
           </tr>
           <tr><td>帧监控</td><td>{{ frameMonitor.running ? '运行中' : `停止（${frameMonitor.frames} 帧）` }}</td></tr>
           <tr><td>scheduler.yield 让出链</td><td>{{ yieldStrategy }}</td></tr>
+          <tr><td>调度器慢任务累计（&gt;3ms 降级）</td><td>{{ schedStats.slowTasks }}</td></tr>
+          <tr><td>调度器跨队列迁移累计（人次）</td><td>{{ schedStats.migrations }}</td></tr>
           <tr v-if="obs.observerErrors.length > 0"><td>observer 降级</td><td>{{ obs.observerErrors.join('; ') }}</td></tr>
         </tbody>
       </table>
@@ -177,7 +179,7 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
-      <p v-else>覆盖：shallowRef/triggerRef、pause/resume、LRU、分片调度器、背压策略。</p>
+      <p v-else>覆盖 10 组：shallowRef/triggerRef、pause/resume、LRU、分片调度器、背压策略、双队列迁移、慢任务降级、分片写×pause/resume、迁移竞态、场景c 10s 竞争对账。</p>
     </section>
   </aside>
 </template>

@@ -23,7 +23,7 @@ URL 参数：`?tab=a|b|c` 选场景；`?scope=0&sched=0...` 单独开关；`?bas
 | 4 | computed 合并重复派生 | `computed` | B | 每函数命令式重算 O(n) → computed 每 flush 算一次 |
 | 5 | watch flush 时机分流 | `flush` | B | sync 连锁 + 同步布局读 → pre 批量 + post 测 DOM |
 | 6 | v-memo 300×8 表格 | `memo` | B | 不稳定 tick prop 全表重渲染 → 依赖数组精确跳过 |
-| 7 | rAF+MessageChannel 自适应分片调度器 | `sched` | A | 360 任务同步长任务 → 8ms 帧预算分片 |
+| 7 | 双队列分片调度器（帧预算 rAF + 后台宏任务链） | `sched` | A | 360 任务同步长任务 → 8ms 帧预算分片，idle 走后台宏任务链，隐藏自动迁移 |
 | 8 | LRU 记忆化（对象入参键） | `lru` | B | 每次全量计算 → 身份字典树键缓存 |
 | 9 | 流聚批 + 背压 | `batch` | C | 每条消息一轮 flush → 缓冲+rAF 合帧+丢弃策略 |
 
@@ -87,6 +87,16 @@ URL 参数：`?tab=a|b|c` 选场景；`?scope=0&sched=0...` 单独开关；`?bas
 
 ## 边界自测（行为断言，非硬编码）
 
-`?selftest=1` 或面板按钮：shallowRef 深写无 trigger 静默不更新/triggerRef 后更新/替换更新；watcher pause 期间不触发、resume 补最新值、恢复后依赖仍在；LRU 对象身份键（同内容不同引用不同键）/容量淘汰/版本失效；调度器完成性/取消/错误传播/优先级/分片内写响应式状态重入 flush；背压三策略语义。
+`?selftest=1` 或面板按钮，共 10 组行为断言：
+1) shallowRef 深写无 trigger 静默不更新/triggerRef 后更新/替换更新；
+2) watcher pause 期间不触发、resume 补最新值、恢复后依赖仍在；
+3) LRU 对象身份键/容量淘汰/版本失效；
+4) 调度器完成性/取消/错误传播/优先级/分片内写响应式状态重入 flush；
+5) 背压三策略语义；
+6) 双队列路由与 document 可见性迁移（帧⇄宏、idle 常驻后台、done/cancel 语义不变）；
+7) 慢任务（>3ms）后继同源优先级降一级（含无 slow 对照组，非硬编码）；
+8) 分片内 shallowRef+triggerRef 写叠加 pause/resume：更新不丢、无同步重入、每帧 flush ≤ 2；
+9) 迁移竞态：入队即 cancel 再隐藏/恢复，任务从未执行且 done 全部 settle；
+10) 场景c 全开（batch+shallow+pause）、50 条/帧流 + 16ms 定时器叠加连续 10s：seq 无重复/同源递增、最终列表等于应保留尾部集合、丢弃可由 dropped+LIST_CAP 窗口解释、flush 轮次 ≤ 帧数 × 1.2。
 
 更多实现期发现（含对 plan 文档两处结论的证伪与修正建议）见 `docs/implementation-notes.md`。
